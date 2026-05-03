@@ -1,0 +1,40 @@
+services:
+  server:
+    build: .
+    container_name: node_app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - HOST=db
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - mi-red
+
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=8817891
+      - MYSQL_DATABASE=alert_process
+    ports:
+      - "3307:3306"
+    networks:
+      - mi-red
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p8817891"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+networks:
+  mi-red:
+
+volumes:
+  mysql_data:

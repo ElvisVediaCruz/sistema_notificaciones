@@ -1,0 +1,7 @@
+.env
+CLAUDE.md
+.claude
+/node_modules
+test-failures.md
+test-happy-path.md
+test-results.md
