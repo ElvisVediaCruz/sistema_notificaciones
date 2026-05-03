@@ -60,7 +60,7 @@ async function start() {
         await db.sequelize.authenticate();
         //alter"modifica la tabla"---force"modifica las tablas eliminando los datos"
         await db.sequelize.sync({ alter: true });
-        app.listen(process.env.PORT_SERVER, () => {
+        app.listen(process.env.PORT || 3000 , () => {
             console.log("http://localhost:", process.env.PORT_SERVER);
         });
         startProcessJob();
