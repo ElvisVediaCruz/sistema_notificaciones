@@ -1,11 +1,8 @@
 import { Sequelize } from "sequelize";
 
 const sequelize = new Sequelize(
-    process.env.DATABASE_NAME,
-    process.env.USER_NAME,
-    process.env.PASSWORD,
+    process.env.DB_URL,
     {
-        host: process.env.HOST,
         dialect: "mysql",
         logging: false
     }
