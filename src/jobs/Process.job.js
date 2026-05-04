@@ -35,13 +35,13 @@ async function sendNotifications(processes, type) {
                 await process.update(update);
                 continue;
             }
-
             const notification =
                 type === "warning_2"
                     ? { title: "Trámite próximo a vencer", body: `El trámite "${process.name}" vence en 2 días.` }
                     : { title: "Trámite próximo a vencer", body: `El trámite "${process.name}" vence mañana.` };
 
             const result = await admin.messaging().sendEachForMulticast({ tokens, notification });
+            
             console.log(`[FCM] enviado: exitosos=${result.successCount} fallidos=${result.failureCount}`);
             result.responses.forEach((r, i) => {
                 if (!r.success) console.error(`[FCM] fallo token[${i}]:`, r.error?.code, r.error?.message);
