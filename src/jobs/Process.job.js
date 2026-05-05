@@ -1,5 +1,4 @@
 import cron from "node-cron";
-import admin from "../config/firebase.js";
 import Process from "../models/Process.model.js";
 import Client from "../models/Clients.model.js";
 import User from "../models/User.model.js";
@@ -7,7 +6,8 @@ import Group from "../models/Group.model.js";
 import GroupMember from "../models/GroupMember.model.js";
 import ProcessState from "../models/ProcessState.model.js";
 import { advanceAlertDate } from "../functions/normalize.js";
-import {updateDate} from "../services/Process.service.js"
+import { updateDate } from "../services/Process.service.js";
+import { notificationService } from "../services/Notification.service.js";
 
 async function getTokensForAdmin(adminId) {
     const adminUser = await User.findByPk(adminId, { attributes: ["fcm_token"] });
@@ -23,32 +23,22 @@ async function getTokensForAdmin(adminId) {
     ].filter(Boolean);
 }
 
+const NOTIFICATION_MESSAGES = {
+    warning_2: (name) => ({ title: "Trámite próximo a vencer", body: `El trámite "${name}" vence en 2 días.` }),
+    warning_1: (name) => ({ title: "Trámite próximo a vencer", body: `El trámite "${name}" vence mañana.` }),
+};
+
 async function sendNotifications(processes, type) {
     const update = type === "warning_2" ? { notified: true } : { notified_due: true };
     for (const process of processes) {
         try {
             const adminId = process.Client.id_user;
             const tokens = await getTokensForAdmin(adminId);
-            console.log(`[FCM] proceso=${process.id_process} tipo=${type} adminId=${adminId} tokens=${tokens.length}`, tokens);
-            if (tokens.length === 0) {
-                console.warn(`[FCM] sin tokens para adminId=${adminId}, notificación omitida`);
-                await process.update(update);
-                continue;
-            }
-            const notification =
-                type === "warning_2"
-                    ? { title: "Trámite próximo a vencer", body: `El trámite "${process.name}" vence en 2 días.` }
-                    : { title: "Trámite próximo a vencer", body: `El trámite "${process.name}" vence mañana.` };
-
-            const result = await admin.messaging().sendEachForMulticast({ tokens, notification });
-            
-            console.log(`[FCM] enviado: exitosos=${result.successCount} fallidos=${result.failureCount}`);
-            result.responses.forEach((r, i) => {
-                if (!r.success) console.error(`[FCM] fallo token[${i}]:`, r.error?.code, r.error?.message);
-            });
+            console.log(`[Job] proceso=${process.id_process} tipo=${type} adminId=${adminId} tokens=${tokens.length}`);
+            await notificationService.send({ tokens, ...NOTIFICATION_MESSAGES[type](process.name) });
             await process.update(update);
         } catch (err) {
-            console.error(`[FCM] error proceso=${process.id_process} tipo=${type}:`, err.message);
+            console.error(`[Job] error proceso=${process.id_process} tipo=${type}:`, err.message);
         }
     }
 }
@@ -93,6 +83,7 @@ async function runJob() {
     await sendNotifications(oneDayWarnings, "warning_1");
     await advanceDueProcesses(dueProcesses);
 }
+
 
 async function runJobUpdate() {
     const today = todayUTC();

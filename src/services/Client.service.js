@@ -27,13 +27,13 @@ class ClientService {
     }
 
     async updateClient(data, id_client, id_user) {
-        const nitExist = await Client.findOne({
+        const nitExist = await Client.count({
             where: {
                 nit: data.nit,
                 id_client: { [Op.ne]: id_client }
             }
         });
-        if (nitExist) throw new Error("nit ya registrado existente");
+        if (nitExist > 0) throw new Error("nit ya registrado existente");
         const client = await Client.findOne({
             where: { id_client, id_user },
             attributes: ["id_client", "name", "nit", "price_year", "active"]
