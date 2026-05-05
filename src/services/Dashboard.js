@@ -2,47 +2,54 @@ import Client from "../models/Clients.model.js";
 import Process from "../models/Process.model.js";
 import State from "../models/State.model.js";
 import ProcessState from "../models/ProcessState.model.js";
+import { Op, Sequelize } from "sequelize";
 
 class Dashboard {
     async getDashboard(adminId) {
-        const [totalClients, totalProcess, totalStates, totalProcessState] = await Promise.all([
-            Client.count({ where: { id_user: adminId, active: true } }),
-            Process.count({
-                where: { active: true},
-                include: [{
-                    model: Client,
-                    where: { id_user: adminId },
-                    attributes: [],
-                    required: true
-                }]
-            }),
-            State.count({ where: { id_user: adminId } }),
-
-            Process.count({
-                where: { active: true },
-                include: [
-                    {
-                    model: ProcessState,
-                    where: { active: false },
-                    required: true
-                    },
-                    {
-                    model: Client,
-                    where: { id_user: adminId },
-                    required: true
-                    }
-                ],
-                distinct: true
-                })
-        ]);
-        return [ totalClients, totalProcess, totalStates, totalProcessState ];
+        const [totalClients, totalProcess, totalStates, totalProcessState, clientes] = await Promise.all([
+        Client.count({
+        where: { id_user: adminId, active: true }
+        }),
+        Client.count({
+            where: {
+                id_user: adminId,
+                id_client: {
+                    [Op.in]: Sequelize.literal(`(
+                        SELECT DISTINCT p.id_client FROM process p
+                        WHERE p.id_process NOT IN (
+                            SELECT id_process FROM processtates WHERE active = false
+                        )
+                    )`)
+                }
+            }
+        }),
+        State.count({
+        where: { id_user: adminId }
+        }),
+        Client.count({
+            where: {
+                id_user: adminId,
+                id_client: {
+                    [Op.in]: Sequelize.literal(`(
+                        SELECT DISTINCT p.id_client FROM process p
+                        INNER JOIN processtates ps ON ps.id_process = p.id_process
+                        WHERE ps.active = false
+                    )`)
+                }
+            }
+        }),
+        this.clientsDashboard(adminId)
+    ]);
+        return [totalClients, totalProcess, totalStates, totalProcessState, clientes];
     }
 
     async clientsDashboard(adminId) {
         return Client.findAll({
-            where: { id_user: adminId },
+            where: { id_user: adminId, active: true },
+            attributes: ["id_client", "name", "nit", "price_month"],
             order: [["id_client", "DESC"]],
-            limit: 5
+            limit: 5,
+            raw: true
         });
     }
 }
