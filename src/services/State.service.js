@@ -7,30 +7,30 @@ import sequelize from "../config/connect.js";
 
 class StateService {
     async createState(data, adminId) {
-        const t = sequelize.transaction()
-        try {
-            const exist = await State.findOne({ where: { name: data.name, id_user: adminId}});
-            if(exist) throw new Error("El estado ya existe");
-            const newState = await State.create({ ...data, id_user: adminId });
-            const process = await Process.findAll({
+        console.log("ingreso")
+        return sequelize.transaction(async (t) => {
+            const exist = await State.findOne({ where: { name: data.name, id_user: adminId }, transaction: t });
+            if (exist) throw new Error("El estado ya existe");
+
+            const newState = await State.create({ ...data, id_user: adminId }, { transaction: t });
+
+            const processes = await Process.findAll({
                 attributes: ["id_process"],
-                include: {
-                    model: Client,
-                    where: {id_user: adminId}
-                }
+                include: { model: Client, where: { id_user: adminId }, attributes: [] },
+                transaction: t,
             });
-            if(process.length > 0){
-                const bulkData = process.map(proc => ({
+
+            if (processes.length > 0) {
+                const bulkData = processes.map((proc) => ({
                     active: false,
-                        id_state: newState.id_state,
-                        id_process: proc.id_process
+                    id_state: newState.id_state,
+                    id_process: proc.id_process,
                 }));
-                await ProcessState.bulkCreate(bulkData);
+                await ProcessState.bulkCreate(bulkData, { transaction: t });
             }
+
             return newState;
-        } catch (error) {
-            throw new Error( error.message);
-        }
+        });
     }
 
     async updateState(data, id_state, adminId) {

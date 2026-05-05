@@ -6,7 +6,6 @@ const router = Router();
 
 router.use(authenticate, resolveAdminId);
 
-router.get("/all",        dashboardController.getDashboard);
-router.get("/lastClients", dashboardController.clientsDashboard);
+router.get("/all", dashboardController.getDashboard);
 
 export default router;
