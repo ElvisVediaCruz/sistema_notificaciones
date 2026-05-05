@@ -17,6 +17,10 @@ router.get("/",
     clientController.getAll
 );
 
+router.get("/status",
+    clientController.getStatus
+);
+
 router.get("/:id",
     validateSchema(clientParamsSchema, "params"),
     clientController.getById

@@ -1,4 +1,6 @@
 import Client from "../models/Clients.model.js";
+import Process from "../models/Process.model.js";
+import ProcessState from "../models/ProcessState.model.js";
 import baseService from "./Base.service.js";
 import { Op } from "sequelize";
 
@@ -63,6 +65,47 @@ class ClientService {
         if (!client) throw new Error("cliente no registrado");
         await client.destroy();
         return true;
+    }
+
+    async getClientsWithStatus(adminId) {
+        const clients = await Client.findAll({
+            where: { id_user: adminId },
+            attributes: ["id_client", "name", "nit", "price_month", "price_year", "active"],
+            include: [{
+                model: Process,
+                attributes: ["id_process", "active"],
+                include: [{ model: ProcessState, attributes: ["active"] }],
+                required: false
+            }],
+            order: [["active", "DESC"]]
+        });
+
+        return clients.map(client => {
+            const { Processes, ...clientData } = client.toJSON();
+            const processes = Processes || [];
+
+            let tramite_status;
+            if (processes.length === 0) {
+                tramite_status = "sin_realizar";
+            } else {
+                const activeProcesses = processes.filter(p => p.active !== false);
+                if (activeProcesses.length === 0) {
+                    tramite_status = "terminados";
+                } else {
+                    const allDone = activeProcesses.every(p =>
+                        p.Process_states?.length > 0 &&
+                        p.Process_states.every(ps => ps.active === true)
+                    );
+                    tramite_status = allDone ? "terminados" : "pendientes";
+                }
+            }
+
+            const allStates = processes.flatMap(p => p.Process_states || []);
+            const pendiente = allStates.some(ps => ps.active === false);
+            const terminado = allStates.some(ps => ps.active === true);
+
+            return { ...clientData, tramite_status, pendiente, terminado };
+        });
     }
 }
 

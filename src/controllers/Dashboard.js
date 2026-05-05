@@ -9,6 +9,15 @@ class DashboardController {
             res.serverError(error.message);
         }
     }
+
+    async getLastClients(req, res) {
+        try {
+            const result = await dashboard.clientsDashboard(req.adminId);
+            res.ok(result);
+        } catch (error) {
+            res.serverError(error.message);
+        }
+    }
 }
 
 const dashboardController = new DashboardController();

@@ -53,6 +53,15 @@ class ClientController {
         }
     }
 
+    async getStatus(req, res) {
+        try {
+            const clients = await clientService.getClientsWithStatus(req.adminId);
+            res.ok(clients);
+        } catch (error) {
+            res.serverError(error.message);
+        }
+    }
+
     async deleteClient(req, res) {
         const { id } = req.params;
         try {

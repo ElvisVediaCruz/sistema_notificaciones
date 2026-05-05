@@ -6,41 +6,80 @@ import { Op, Sequelize } from "sequelize";
 
 class Dashboard {
     async getDashboard(adminId) {
-        const [totalClients, totalProcess, totalStates, totalProcessState, clientes] = await Promise.all([
-        Client.count({
-        where: { id_user: adminId, active: true }
-        }),
-        Client.count({
-            where: {
-                id_user: adminId,
-                id_client: {
-                    [Op.in]: Sequelize.literal(`(
-                        SELECT DISTINCT p.id_client FROM process p
-                        WHERE p.id_process NOT IN (
-                            SELECT id_process FROM processtates WHERE active = false
-                        )
-                    )`)
-                }
-            }
-        }),
-        State.count({
-        where: { id_user: adminId }
-        }),
-        Client.count({
-            where: {
-                id_user: adminId,
-                id_client: {
-                    [Op.in]: Sequelize.literal(`(
-                        SELECT DISTINCT p.id_client FROM process p
-                        INNER JOIN processtates ps ON ps.id_process = p.id_process
-                        WHERE ps.active = false
-                    )`)
-                }
-            }
-        }),
-        this.clientsDashboard(adminId)
-    ]);
-        return [totalClients, totalProcess, totalStates, totalProcessState, clientes];
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        const sevenDaysLater = new Date(today);
+        sevenDaysLater.setUTCDate(today.getUTCDate() + 7);
+
+        const todayStr = today.toISOString().split("T")[0];
+        const sevenDaysLaterStr = sevenDaysLater.toISOString().split("T")[0];
+
+        const [
+            totalClients,
+            totalActiveProcesses,
+            totalStates,
+            totalInactiveProcessStates,
+            recentClients,
+            dueToday,
+            monthlyIncome,
+            upcomingProcesses,
+        ] = await Promise.all([
+            Client.count({ where: { id_user: adminId, active: true } }),
+            Process.count({
+                distinct: true,
+                col: "id_process",
+                where: {
+                    active: true,
+                    id_process: {
+                        [Op.notIn]: Sequelize.literal(`(SELECT DISTINCT id_process FROM processtates WHERE active = false)`),
+                    },
+                },
+                include: [{ model: Client, where: { id_user: adminId, active: true }, attributes: [] }],
+            }),
+            State.count({ where: { id_user: adminId } }),
+            Process.count({
+                distinct: true,
+                col: "id_process",
+                where: {
+                    active: true,
+                    id_process: {
+                        [Op.in]: Sequelize.literal(`(SELECT DISTINCT id_process FROM processtates WHERE active = false)`),
+                    },
+                },
+                include: [{ model: Client, where: { id_user: adminId, active: true }, attributes: [] }],
+            }),
+            this.clientsDashboard(adminId),
+            Process.count({
+                where: { active: true, time_process: todayStr },
+                include: [{ model: Client, where: { id_user: adminId, active: true }, attributes: [] }],
+            }),
+            Client.sum("price_month", { where: { id_user: adminId, active: true } }),
+            Process.findAll({
+                where: {
+                    active: true,
+                    time_process: { [Op.between]: [todayStr, sevenDaysLaterStr] },
+                    id_process: {
+                        [Op.in]: Sequelize.literal(`(
+                            SELECT DISTINCT id_process FROM processtates WHERE active = false
+                        )`),
+                    },
+                },
+                include: [{ model: Client, where: { id_user: adminId, active: true }, attributes: ["id_client", "name"] }],
+                attributes: ["id_process", "name", "time_process"],
+                order: [["time_process", "ASC"]],
+            }),
+        ]);
+
+        return {
+            totalClients,
+            totalActiveProcesses,
+            totalStates,
+            totalInactiveProcessStates,
+            recentClients,
+            dueToday,
+            monthlyIncome: monthlyIncome ?? 0,
+            upcomingProcesses,
+        };
     }
 
     async clientsDashboard(adminId) {
@@ -49,7 +88,7 @@ class Dashboard {
             attributes: ["id_client", "name", "nit", "price_month"],
             order: [["id_client", "DESC"]],
             limit: 5,
-            raw: true
+            raw: true,
         });
     }
 }
